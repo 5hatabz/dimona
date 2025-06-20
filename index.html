@@ -13,13 +13,16 @@
     body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     #map { height: 100vh; width: 100%; }
     .title-banner {
-      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
       background-color: rgba(0, 0, 0, 0.8); color: #fff;
-      padding: 15px 30px; border: 2px solid #e74c3c;
-      font-size: 1.2rem; font-weight: bold;
-      border-radius: 10px; z-index: 1000;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      padding: 8px 16px; border: 2px solid #e74c3c;
+      font-size: 1rem; font-weight: bold;
+      border-radius: 8px; z-index: 1000;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
       text-align: center; max-width: 90%;
+    }
+    @media (max-width: 768px) {
+      .title-banner { font-size: 0.9rem; padding: 6px 12px; }
     }
     .control-panel {
       position: fixed; bottom: 20px; left: 20px; z-index: 1000;
@@ -30,15 +33,6 @@
       backdrop-filter: blur(5px);
       transition: all 0.3s ease;
     }
-    .legend-toggle {
-      position: fixed; bottom: 20px; left: 330px;
-      background: #e74c3c; color: white;
-      border-radius: 50%; width: 40px; height: 40px;
-      text-align: center; line-height: 40px;
-      font-size: 20px; cursor: pointer; z-index: 1001;
-      box-shadow: 0 0 10px #000;
-    }
-    .control-panel.hidden { transform: translateY(120%); opacity: 0; pointer-events: none; }
     .zone-info { display: flex; align-items: center; margin-bottom: 5px; font-size: 0.85rem; }
     .zone-color { width: 15px; height: 15px; border-radius: 50%; margin-left: 8px; display: inline-block; }
     .styled-select {
@@ -53,10 +47,6 @@
       padding: 15px; border-radius: 10px;
       box-shadow: 0 0 15px rgba(0,0,0,0.5);
       z-index: 1000; text-align: center;
-      display: none;
-    }
-    .share-popup.visible {
-      display: block;
     }
     .share-popup button {
       margin: 5px; padding: 8px 12px;
@@ -66,14 +56,6 @@
       font-size: 0.9rem;
     }
     .share-popup button:hover { background-color: #666; }
-    .share-toggle {
-      position: fixed; top: 140px; right: 20px;
-      background: #e74c3c; color: white;
-      border-radius: 50%; width: 40px; height: 40px;
-      text-align: center; line-height: 40px;
-      font-size: 20px; cursor: pointer; z-index: 1001;
-      box-shadow: 0 0 10px #000;
-    }
   </style>
 </head>
 <body>
@@ -84,9 +66,6 @@
   <div id="map"></div>
 
   <div class="control-panel" id="controlPanel">
-    <div class="control-header">
-      <span class="control-title"><i class="fas fa-cog"></i> لوحة التحكم</span>
-    </div>
     <div class="control-group">
       <label class="control-label">شدة الحادث:</label>
       <select id="incident-severity" class="styled-select">
@@ -101,18 +80,15 @@
     </div>
     <div class="control-group">
       <label class="control-label">نطاقات التأثير:</label>
-      <div class="zone-info"><span class="zone-color" style="background: #D80027;"></span> منطقة الخطر المباشر (0-10 كم)</div>
-      <div class="zone-info"><span class="zone-color" style="background: #FF5733;"></span> منطقة الخطر الشديد (10-30 كم)</div>
-      <div class="zone-info"><span class="zone-color" style="background: #F9C80E;"></span> منطقة الخطر المتوسط (30-100 كم)</div>
-      <div class="zone-info"><span class="zone-color" style="background: #1FAB89;"></span> منطقة الخطر المحدود (100-300 كم)</div>
+      <div class="zone-info"><span class="zone-color" style="background: #ff0000;"></span> منطقة الخطر المباشر (0-10 كم)</div>
+      <div class="zone-info"><span class="zone-color" style="background: #ff6600;"></span> منطقة الخطر الشديد (10-30 كم)</div>
+      <div class="zone-info"><span class="zone-color" style="background: #ffff00;"></span> منطقة الخطر المتوسط (30-100 كم)</div>
+      <div class="zone-info"><span class="zone-color" style="background: #00ffff;"></span> منطقة الخطر المحدود (100-300 كم)</div>
     </div>
     <button id="simulate-btn"><i class="fas fa-play"></i> تشغيل المحاكاة</button>
   </div>
 
-  <div class="legend-toggle" onclick="toggleLegend()">🧭</div>
-  <div class="share-toggle" onclick="toggleShare()">📤</div>
-
-  <div class="share-popup" id="sharePopup">
+  <div class="share-popup">
     <button onclick="shareMap('facebook')"><i class="fab fa-facebook"></i> فيسبوك</button>
     <button onclick="shareMap('twitter')"><i class="fab fa-twitter"></i> تويتر</button>
     <button onclick="shareMap('whatsapp')"><i class="fab fa-whatsapp"></i> واتساب</button>
@@ -149,12 +125,34 @@
             weight: 1.5,
             dashArray: '4',
             fillOpacity: 0
+          },
+          onEachFeature: function (feature, layer) {
+            if (feature.properties.name) {
+              layer.bindTooltip(feature.properties.name, {
+                permanent: false,
+                direction: 'center',
+                className: 'country-label'
+              });
+            }
           }
         }).addTo(map);
       });
 
+    const capitals = [
+      { name: "القاهرة", coords: [30.0444, 31.2357] },
+      { name: "عمان", coords: [31.9539, 35.9106] },
+      { name: "دمشق", coords: [33.5138, 36.2765] },
+      { name: "القدس", coords: [31.7683, 35.2137] },
+      { name: "بيروت", coords: [33.8938, 35.5018] },
+      { name: "بغداد", coords: [33.3128, 44.3615] }
+    ];
+
+    capitals.forEach(cap => {
+      L.marker(cap.coords).addTo(map).bindTooltip(cap.name, { permanent: false, direction: 'top' });
+    });
+
     let radiationCircles = [];
-    const colors = ['#D80027', '#FF5733', '#F9C80E', '#1FAB89'];
+    const colors = ['#ff0000', '#ff6600', '#ffff00', '#00ffff'];
     const radii = [10000, 30000, 100000, 300000];
 
     function updateRadiationZones(severity = 'medium', time = 0) {
@@ -181,14 +179,6 @@
     document.getElementById('time-slider').addEventListener('input', function () {
       document.getElementById('time-value').textContent = this.value;
     });
-
-    function toggleLegend() {
-      document.getElementById('controlPanel').classList.toggle('hidden');
-    }
-
-    function toggleShare() {
-      document.getElementById('sharePopup').classList.toggle('visible');
-    }
 
     function shareMap(platform) {
       const url = encodeURIComponent(window.location.href);
