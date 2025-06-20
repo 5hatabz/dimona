@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>خريطة محاكاة تأثير إشعاعي - مفاعل ديمونا</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-measure/dist/leaflet-measure.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-measure/dist/leaflet-measure.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    #map { height: 100vh; width: 100%; }
+    .title-banner {
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      background-color: rgba(0, 0, 0, 0.8); color: #fff;
+      padding: 15px 30px; border: 2px solid #e74c3c;
+      font-size: 1.2rem; font-weight: bold;
+      border-radius: 10px; z-index: 1000;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      text-align: center; max-width: 90%;
+    }
+    .control-panel {
+      position: fixed; bottom: 20px; left: 20px; z-index: 1000;
+      background-color: rgba(0, 0, 0, 0.8); color: white;
+      border-radius: 10px; padding: 15px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      width: 300px;
+      backdrop-filter: blur(5px);
+      transition: all 0.3s ease;
+    }
+    .legend-toggle {
+      position: fixed; bottom: 20px; left: 330px;
+      background: #e74c3c; color: white;
+      border-radius: 50%; width: 40px; height: 40px;
+      text-align: center; line-height: 40px;
+      font-size: 20px; cursor: pointer; z-index: 1001;
+      box-shadow: 0 0 10px #000;
+    }
+    .control-panel.hidden { transform: translateY(120%); opacity: 0; pointer-events: none; }
+    .zone-info { display: flex; align-items: center; margin-bottom: 5px; font-size: 0.85rem; }
+    .zone-color { width: 15px; height: 15px; border-radius: 50%; margin-left: 8px; display: inline-block; }
+    .styled-select {
+      width: 100%; padding: 8px;
+      background: #111; color: #fff;
+      border: 1px solid #666; border-radius: 6px;
+      font-weight: bold;
+    }
+    .share-popup {
+      position: fixed; top: 80px; right: 20px;
+      background: rgba(0, 0, 0, 0.85); color: white;
+      padding: 15px; border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
+      z-index: 1000; text-align: center;
+      display: none;
+    }
+    .share-popup.visible {
+      display: block;
+    }
+    .share-popup button {
+      margin: 5px; padding: 8px 12px;
+      background-color: #444;
+      color: white; border: none;
+      border-radius: 5px; cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .share-popup button:hover { background-color: #666; }
+    .share-toggle {
+      position: fixed; top: 140px; right: 20px;
+      background: #e74c3c; color: white;
+      border-radius: 50%; width: 40px; height: 40px;
+      text-align: center; line-height: 40px;
+      font-size: 20px; cursor: pointer; z-index: 1001;
+      box-shadow: 0 0 10px #000;
+    }
+  </style>
+</head>
+<body>
+  <div class="title-banner">
+    <i class="fas fa-radiation-alt"></i> خريطة محاكاة الانتشار الإشعاعي - مفاعل ديمونا
+  </div>
+
+  <div id="map"></div>
+
+  <div class="control-panel" id="controlPanel">
+    <div class="control-header">
+      <span class="control-title"><i class="fas fa-cog"></i> لوحة التحكم</span>
+    </div>
+    <div class="control-group">
+      <label class="control-label">شدة الحادث:</label>
+      <select id="incident-severity" class="styled-select">
+        <option value="low">🚨 حادث محدود</option>
+        <option value="medium">☢️ تسرب إشعاعي</option>
+        <option value="high">💥 انفجار نووي</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label class="control-label">الوقت بعد الحادث: <span id="time-value">0</span> ساعة</label>
+      <input type="range" min="0" max="72" value="0" class="time-slider" id="time-slider">
+    </div>
+    <div class="control-group">
+      <label class="control-label">نطاقات التأثير:</label>
+      <div class="zone-info"><span class="zone-color" style="background: #D80027;"></span> منطقة الخطر المباشر (0-10 كم)</div>
+      <div class="zone-info"><span class="zone-color" style="background: #FF5733;"></span> منطقة الخطر الشديد (10-30 كم)</div>
+      <div class="zone-info"><span class="zone-color" style="background: #F9C80E;"></span> منطقة الخطر المتوسط (30-100 كم)</div>
+      <div class="zone-info"><span class="zone-color" style="background: #1FAB89;"></span> منطقة الخطر المحدود (100-300 كم)</div>
+    </div>
+    <button id="simulate-btn"><i class="fas fa-play"></i> تشغيل المحاكاة</button>
+  </div>
+
+  <div class="legend-toggle" onclick="toggleLegend()">🧭</div>
+  <div class="share-toggle" onclick="toggleShare()">📤</div>
+
+  <div class="share-popup" id="sharePopup">
+    <button onclick="shareMap('facebook')"><i class="fab fa-facebook"></i> فيسبوك</button>
+    <button onclick="shareMap('twitter')"><i class="fab fa-twitter"></i> تويتر</button>
+    <button onclick="shareMap('whatsapp')"><i class="fab fa-whatsapp"></i> واتساب</button>
+    <button onclick="copyLink()"><i class="fas fa-link"></i> نسخ الرابط</button>
+  </div>
+
+  <script>
+    const map = L.map('map', {
+      center: [31.0004, 35.1419],
+      zoom: 7,
+      preferCanvas: true
+    });
+
+    const basemaps = {
+      "🌍 الخريطة العادية": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map),
+      "🛰️ صور الأقمار الصناعية": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri'
+      }),
+      "🌃 الخريطة الليلية": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; CartoDB'
+      })
+    };
+
+    L.control.layers(basemaps, null, { position: 'topright' }).addTo(map);
+
+    fetch("https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json")
+      .then(res => res.json())
+      .then(data => {
+        L.geoJSON(data, {
+          style: {
+            color: "white",
+            weight: 1.5,
+            dashArray: '4',
+            fillOpacity: 0
+          }
+        }).addTo(map);
+      });
+
+    let radiationCircles = [];
+    const colors = ['#D80027', '#FF5733', '#F9C80E', '#1FAB89'];
+    const radii = [10000, 30000, 100000, 300000];
+
+    function updateRadiationZones(severity = 'medium', time = 0) {
+      radiationCircles.forEach(c => map.removeLayer(c));
+      radiationCircles = [];
+      let expansionFactor = 1 + (time / 10) * (severity === 'high' ? 1.5 : severity === 'medium' ? 1 : 0.5);
+      radii.forEach((r, i) => {
+        let circle = L.circle([31.0004, 35.1419], {
+          radius: r * expansionFactor,
+          color: colors[i],
+          fillColor: colors[i],
+          fillOpacity: 0.4 + i * 0.1
+        }).addTo(map);
+        radiationCircles.push(circle);
+      });
+    }
+
+    document.getElementById('simulate-btn').addEventListener('click', function () {
+      const severity = document.getElementById('incident-severity').value;
+      const time = parseInt(document.getElementById('time-slider').value);
+      updateRadiationZones(severity, time);
+    });
+
+    document.getElementById('time-slider').addEventListener('input', function () {
+      document.getElementById('time-value').textContent = this.value;
+    });
+
+    function toggleLegend() {
+      document.getElementById('controlPanel').classList.toggle('hidden');
+    }
+
+    function toggleShare() {
+      document.getElementById('sharePopup').classList.toggle('visible');
+    }
+
+    function shareMap(platform) {
+      const url = encodeURIComponent(window.location.href);
+      const text = encodeURIComponent("خريطة محاكاة إشعاعية لمفاعل ديمونا");
+      let link = "";
+      if (platform === 'facebook') link = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+      if (platform === 'twitter') link = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
+      if (platform === 'whatsapp') link = `https://wa.me/?text=${text}%20${url}`;
+      window.open(link, '_blank');
+    }
+
+    function copyLink() {
+      navigator.clipboard.writeText(window.location.href)
+        .then(() => alert('تم نسخ الرابط'));
+    }
+
+    const reactorIcon = L.divIcon({
+      html: '<i class="fas fa-radiation" style="color: #ff0000; font-size: 18px;"></i>',
+      className: 'reactor-marker'
+    });
+
+    L.marker([31.0004, 35.1419], { icon: reactorIcon }).addTo(map).bindPopup("<b>☢️ مفاعل ديمونا النووي</b>");
+  </script>
+</body>
+</html>
